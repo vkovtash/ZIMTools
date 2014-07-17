@@ -8,6 +8,8 @@
 
 #import "NSTimer+ZIMWeakTarget.h"
 
+static NSString *const ZIMTimersBackgroundThreadName = @"ZIMTimersBackgroundThread";
+
 @interface ZIMWeakTimerTarget : NSObject
 @property (weak, nonatomic, readonly) id target;
 @property (nonatomic, readonly) SEL selector;
@@ -67,6 +69,26 @@
                                            repeats:repeats];
 }
 
++ (NSTimer *)scheduledBackgroundTimerWithTimeInterval:(NSTimeInterval)seconds
+                                 weakTarget:(id)target
+                                   selector:(SEL)aSelector
+                                   userInfo:(id)userInfo
+                                    repeats:(BOOL)repeats {
+    ZIMWeakTimerTarget *weakTarget = [[ZIMWeakTimerTarget alloc] initWithTarget:target selector:aSelector];
+    NSTimer *timer = [NSTimer timerWithTimeInterval:seconds
+                                             target:weakTarget
+                                           selector:@selector(timerFireMethod:)
+                                           userInfo:userInfo
+                                            repeats:repeats];
+    
+    [[self class] performSelector:@selector(sheduleBackgroundTimer:)
+                         onThread:[[self class] backgroundThread]
+                       withObject:timer
+                    waitUntilDone:YES];
+    
+    return timer;
+}
+
 + (NSTimer *)timerWithTimeInterval:(NSTimeInterval)seconds
                         weakTarget:(id)target
                           selector:(SEL)aSelector
@@ -78,6 +100,40 @@
                                  selector:@selector(timerFireMethod:)
                                  userInfo:userInfo
                                   repeats:repeats];
+}
+
++ (NSThread *) backgroundThread {
+	static dispatch_once_t predicate;
+    __strong static NSThread *_sharedObject = nil;
+	dispatch_once(&predicate, ^{
+		_sharedObject = [[NSThread alloc] initWithTarget:[self class]
+		                                         selector:@selector(configureThread)
+		                                           object:nil];
+		[_sharedObject start];
+	});
+    return _sharedObject;
+}
+
++ (void) configureThread {
+	@autoreleasepool {
+		[[NSThread currentThread] setName:ZIMTimersBackgroundThreadName];
+		// We can't run the run loop unless it has an associated input source or a timer.
+		// So we'll just create a timer that will never fire - unless the server runs for a decades.
+		[NSTimer scheduledTimerWithTimeInterval:[[NSDate distantFuture] timeIntervalSinceNow]
+		                                 target:[self class]
+		                               selector:@selector(ignore:)
+		                               userInfo:nil
+		                                repeats:YES];
+		
+		[[NSRunLoop currentRunLoop] run];
+	}
+}
+
++ (void) ignore:(NSTimer *) timer {
+}
+
++ (void) sheduleBackgroundTimer:(NSTimer *) timer {
+    [[NSRunLoop currentRunLoop] addTimer:timer forMode:NSDefaultRunLoopMode];
 }
 
 @end

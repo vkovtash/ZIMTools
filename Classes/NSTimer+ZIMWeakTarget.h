@@ -15,6 +15,11 @@
                                    selector:(SEL)aSelector
                                    userInfo:(id)userInfo
                                     repeats:(BOOL)repeats;
++ (NSTimer *)scheduledBackgroundTimerWithTimeInterval:(NSTimeInterval)seconds
+                                           weakTarget:(id)target
+                                             selector:(SEL)aSelector
+                                             userInfo:(id)userInfo
+                                              repeats:(BOOL)repeats;
 + (NSTimer *)timerWithTimeInterval:(NSTimeInterval)seconds
                         weakTarget:(id)target
                           selector:(SEL)aSelector
